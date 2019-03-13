@@ -8,6 +8,7 @@ Ambari -> HBase -> Configs -> Custom hbase-site -> hfile.format.version=3
 
 ### 2. Setting retry threshold
 To repro reduce the retry count from 10 to 3 and split table from 1 region to 4 or above.
+
 Ambari -> HBase -> Configs -> Custom hbase-site -> hbase.bulkload.retries.number=3
 
 ### 3. Restart HBase.
