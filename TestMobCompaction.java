@@ -56,23 +56,7 @@ public class TestMobCompaction {
         HTU.shutdownMiniCluster();
     }
 
-    private void waitUntilFilesShowup(final FileSystem fs, final Path path, final int num)
-            throws InterruptedException, IOException  {
 
-        FileStatus[] fileList = fs.listStatus(path);
-
-        while (fileList.length != num) {
-            Thread.sleep(50);
-            fileList = fs.listStatus(path);
-        }
-    }
-
-    /**
-     * This test case tries to test the following mob compaction and normal compaction scenario:
-     *   After mob compaction, the mob reference in new bulkloaded hfile will win even after it
-     *   is compacted with some other normal hfiles. This is to make sure that mvcc is included
-     *   after compaction for mob enabled store files.
-     */
     @Test
     public void testMobCompaction() throws InterruptedException, IOException {
         // Create table then get the single region for our new table.
