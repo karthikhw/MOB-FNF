@@ -29,15 +29,15 @@ import java.util.Arrays;
 /**
 Repro for MOB datalosss Scenario
 
- 1. Insert 10 Milllion records
+1. Insert 10 Million records
  2. In the mean time
-      a) Triggger MOB Compaction (every 2 minutes)
+      a) Trigger MOB Compaction (every 2 minutes)
       b) Trigger normal major compaction (every 2 minutes)
       c) Trigger archive cleaner (every 3 minutes)
- 3. Minor compaction frequently triggered because size of the flush is small
+ 3. Minor compaction frequently triggered because the size of the flush is small
       a) Region Size 10 MB
       b) Flush size 1 MB
- 4. Data validation started after 1 hours
+ 4. Data validation started after 1 hour
  */
 @Category(MediumTests.class)
 public class TestMobCompaction {
