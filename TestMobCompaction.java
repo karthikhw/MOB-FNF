@@ -63,7 +63,7 @@ public class TestMobCompaction {
         HTU.getConfiguration().setInt("hbase.client.retries.number", 100);
         HTU.getConfiguration().setInt("hbase.hregion.max.filesize", 200000000);
         HTU.getConfiguration().setInt("hbase.hregion.memstore.flush.size", 800000);
-        HTU.getConfiguration().setInt("hbase.mob.compaction.chore.period", 0);
+        //HTU.getConfiguration().setInt("hbase.mob.compaction.chore.period", 0);
         HTU.startMiniCluster();
 
         hcd= new HColumnDescriptor(fam);
