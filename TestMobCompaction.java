@@ -11,9 +11,6 @@ import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Table;
 
-import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 
 
 import org.apache.hadoop.hbase.master.cleaner.TimeToLiveHFileCleaner;
@@ -29,6 +26,19 @@ import org.junit.experimental.categories.Category;
 import java.io.IOException;
 import java.util.Arrays;
 
+/**
+Repro for MOB datalosss Scenario
+
+ 1. Insert 10 Milllion records
+ 2. In the mean time
+      a) Triggger MOB Compaction (every 2 minutes)
+      b) Trigger normal major compaction (every 2 minutes)
+      c) Trigger archive cleaner (every 3 minutes)
+ 3. Minor compaction frequently triggered because size of the flush is small
+      a) Region Size 10 MB
+      b) Flush size 1 MB
+ 4. Data validation started after 1 hours
+ */
 @Category(MediumTests.class)
 public class TestMobCompaction {
     private static final Log LOG = LogFactory.getLog(TestMobCompaction.class);
@@ -36,19 +46,34 @@ public class TestMobCompaction {
     private static final HBaseTestingUtility HTU = new HBaseTestingUtility();
 
     private final static String famStr = "f1";
-    private final byte[] fam = Bytes.toBytes(famStr);
-    private final byte[] qualifier = Bytes.toBytes("q1");
-    private final long mobLen = 10;
-    private byte[] mobVal = Bytes.toBytes("01234567890");
+    private final static byte[] fam = Bytes.toBytes(famStr);
+    private final static byte[] qualifier = Bytes.toBytes("q1");
+    private final static long mobLen = 10;
+    private final static byte[] mobVal = Bytes.toBytes("01234567890123");
+    private final static HTableDescriptor hdt = HTU.createTableDescriptor("testMobCompactTable");
+    private static HColumnDescriptor hcd= new HColumnDescriptor(fam);
+    private final static long count = 10000000;
+    private static Table table = null;
 
+    private static volatile boolean run = true;
 
     @BeforeClass
     public static void beforeClass() throws Exception {
         HTU.getConfiguration().setInt("hfile.format.version", 3);
         HTU.getConfiguration().setLong(TimeToLiveHFileCleaner.TTL_CONF_KEY, 0);
-        HTU.getConfiguration().setInt("hbase.client.retries.number", 1);
-        HTU.getConfiguration().setInt("hbase.hfile.compaction.discharger.interval", 100);
+        HTU.getConfiguration().setInt("hbase.client.retries.number", 100);
+        //HTU.getConfiguration().setInt("hbase.hfile.compaction.discharger.interval", 100);
+        HTU.getConfiguration().setInt("hbase.hregion.max.filesize", 10000000);
+        HTU.getConfiguration().setInt("hbase.hregion.memstore.flush.size", 1000000);
         HTU.startMiniCluster();
+
+        // Create table then get the single region for our new table.
+        hcd= new HColumnDescriptor(fam);
+        hcd.setMobEnabled(true);
+        hcd.setMobThreshold(mobLen);
+        hcd.setMaxVersions(1);
+        hdt.addFamily(hcd);
+        table = HTU.createTable(hdt, null);
     }
 
     @AfterClass
@@ -56,93 +81,152 @@ public class TestMobCompaction {
         HTU.shutdownMiniCluster();
     }
 
+     class MobCompactionThread implements Runnable {
+
+        @Override
+        public void run() {
+
+            while (run) {
+                try {
+                    //MOB Compaction
+                    HTU.getHBaseAdmin().compact(hdt.getTableName(), fam, CompactType.MOB);
+                    Thread.sleep(120000);
+
+                }catch (Exception e){
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+
+     class MajorCompaction implements Runnable {
+
+        @Override
+        public void run() {
+            while (run) {
+                try {
+                    HTU.getHBaseAdmin().majorCompact(hdt.getTableName(), fam);
+                    Thread.sleep(120000);
+                }catch (Exception e){
+                    e.printStackTrace();
+                }
+
+            }
+
+        }
+    }
+
+
+    class CleanArchive implements Runnable {
+
+        @Override
+        public void run() {
+            while (run) {
+                try {
+                    HTU.getMiniHBaseCluster().getMaster().getHFileCleaner().choreForTesting();
+                    Thread.sleep(180000);
+                }catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+
+
+    class WriteData implements Runnable {
+
+        private long rows=-1;
+
+        public WriteData(long rows) {
+            this.rows = rows;
+        }
+
+        @Override
+        public void run() {
+            try {
+                HRegion r = HTU.getMiniHBaseCluster().getRegions(hdt.getTableName()).get(0);
+                //Put Operation
+                for (int i = 0; i < rows; i++) {
+                    Put p = new Put(Bytes.toBytes(i));
+                    p.addColumn(fam, qualifier, mobVal);
+                    table.put(p);
+                }
+                run = false;
+            }catch (Exception e) {
+                e.printStackTrace();
+            }
+
+
+        }
+    }
+
+    class ValidateData implements Runnable {
+
+        @Override
+        public void run() {
+            while (run) {
+                    try {
+                        Get get;Result result;
+                        for (int i = 0; i < count ; i++) {
+                            get = new Get(Bytes.toBytes(i));
+                            result = table.get(get);
+                            assertTrue(Arrays.equals(result.getValue(fam, qualifier), mobVal));
+                            Thread.sleep(10);
+                        }
+                        run = false;
+                    } catch (Exception e) {
+                        run = false;
+                        e.printStackTrace();
+                        assertTrue(false);
+                    }
+            }
+        }
+    }
+
+
+
 
     @Test
     public void testMobCompaction() throws InterruptedException, IOException {
-        // Create table then get the single region for our new table.
-        HTableDescriptor hdt = HTU.createTableDescriptor("testMobCompactTable");
-        HColumnDescriptor hcd= new HColumnDescriptor(fam);
-
-        hcd.setMobEnabled(true);
-        hcd.setMobThreshold(mobLen);
-        hcd.setMaxVersions(1);
-        hdt.addFamily(hcd);
 
         try {
-            Table table = HTU.createTable(hdt, null);
 
-            HRegion r = HTU.getMiniHBaseCluster().getRegions(hdt.getTableName()).get(0);
+            Thread writeData = new Thread(new WriteData(count));
+            writeData.start();
 
-
-            int count = 100;
-            //Put Operation
-            for (int i = 0; i < count; i++) {
-
-                Put p = new Put(Bytes.toBytes("r"+i));
-                p.addColumn(fam, qualifier, mobVal);
-                table.put(p);
-                HTU.flush(table.getName());
-
-                p = new Put(Bytes.toBytes("r"+i+1));
-                p.addColumn(fam, qualifier, mobVal);
-                table.put(p);
-                HTU.flush(table.getName());
-
-                p = new Put(Bytes.toBytes("r"+i+2));
-                p.addColumn(fam, qualifier, mobVal);
-                table.put(p);
-                HTU.flush(table.getName());
-
-                p = new Put(Bytes.toBytes("r"+i+3));
-                p.addColumn(fam, qualifier, mobVal);
-                table.put(p);
-                HTU.flush(table.getName());
+            Thread mobcompact = new Thread(new MobCompactionThread());
+            mobcompact.start();
 
 
-                p = new Put(Bytes.toBytes("r"+i+4));
-                p.addColumn(fam, qualifier, mobVal);
-                table.put(p);
-                HTU.flush(table.getName());
+            Thread majorcompact = new Thread(new MajorCompaction());
+            majorcompact.start();
 
 
-                p = new Put(Bytes.toBytes("r"+i+5));
-                p.addColumn(fam, qualifier, mobVal);
-                table.put(p);
-                HTU.flush(table.getName());
+            Thread cleanArchive = new Thread(new CleanArchive());
+            cleanArchive.start();
 
-                p = new Put(Bytes.toBytes("r"+i+6));
-                p.addColumn(fam, qualifier, mobVal);
-                table.put(p);
-                HTU.flush(table.getName());
+            Thread.sleep(60*60000);
+            Thread validateData = new Thread(new ValidateData());
+            //validateData.start();
 
-
-                p = new Put(Bytes.toBytes("r"+i+7));
-                p.addColumn(fam, qualifier, mobVal);
-                table.put(p);
-                HTU.flush(table.getName());
-
-
-                //Minor Compaction
-                //HTU.getHBaseAdmin().compact(hdt.getTableName(), fam);
-                //Major Compaction
-                HTU.getHBaseAdmin().majorCompact(hdt.getTableName(), fam);
-                //MOB Compaction
-                HTU.getHBaseAdmin().compact(hdt.getTableName(), fam, CompactType.MOB);
-                Thread.sleep(100);
-                //Clean Archive
-                HTU.getMiniHBaseCluster().getMaster().getHFileCleaner().choreForTesting();
-            }
-            Thread.sleep(10000);
-            try {
-                Get get;Result result;
-                for (int i = 0; i < count ; i++) {
-                     get = new Get(Bytes.toBytes("r"+i));
-                     result = table.get(get);
-                     assertTrue(Arrays.equals(result.getValue(fam, qualifier), mobVal));
+            while (run){
+                try {
+                    Get get;Result result;
+                    for (int i = 0; i < count ; i++) {
+                        get = new Get(Bytes.toBytes(i));
+                        result = table.get(get);
+                        assertTrue(Arrays.equals(result.getValue(fam, qualifier), mobVal));
+                        Thread.sleep(10);
+                    }
+                    run = false;
+                } catch (Exception e) {
+                        e.printStackTrace();
+                        assertTrue(false);
                 }
-            } catch (IOException e) {
-               throw new RuntimeException(e);
             }
+
         } finally {
 
             HTU.getHBaseAdmin().disableTable(hdt.getTableName());
