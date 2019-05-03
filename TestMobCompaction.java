@@ -35,13 +35,10 @@ Repro for MOB datalosss Scenario
       b) Trigger normal major compaction (every 2 minutes)
       c) Trigger archive cleaner (every 3 minutes)
  3. Minor compaction frequently triggered because size of the flush is small
-      a) Region Size 10 MB
-      b) Flush size 1 MB
-<<<<<<< HEAD
+      a) Region Size 200 MB
+      b) Flush size 800 KB
  4. Data validation started after data load
-=======
- 4. Data validation started after 1 hours
->>>>>>> Reproduced Code
+
  */
 @Category(MediumTests.class)
 public class TestMobCompaction {
