@@ -29,15 +29,19 @@ import java.util.Arrays;
 /**
 Repro for MOB datalosss Scenario
 
-1. Insert 10 Million records
+ 1. Insert 10 Milllion records
  2. In the mean time
-      a) Trigger MOB Compaction (every 2 minutes)
+      a) Triggger MOB Compaction (every 2 minutes)
       b) Trigger normal major compaction (every 2 minutes)
       c) Trigger archive cleaner (every 3 minutes)
- 3. Minor compaction frequently triggered because the size of the flush is small
+ 3. Minor compaction frequently triggered because size of the flush is small
       a) Region Size 10 MB
       b) Flush size 1 MB
+<<<<<<< HEAD
  4. Data validation started after data load
+=======
+ 4. Data validation started after 1 hours
+>>>>>>> Reproduced Code
  */
 @Category(MediumTests.class)
 public class TestMobCompaction {
@@ -63,8 +67,8 @@ public class TestMobCompaction {
         HTU.getConfiguration().setLong(TimeToLiveHFileCleaner.TTL_CONF_KEY, 0);
         HTU.getConfiguration().setInt("hbase.client.retries.number", 100);
         //HTU.getConfiguration().setInt("hbase.hfile.compaction.discharger.interval", 100);
-        HTU.getConfiguration().setInt("hbase.hregion.max.filesize", 150000000);
-        HTU.getConfiguration().setInt("hbase.hregion.memstore.flush.size", 1000000);
+        HTU.getConfiguration().setInt("hbase.hregion.max.filesize", 200000000);
+        HTU.getConfiguration().setInt("hbase.hregion.memstore.flush.size", 800000);
         HTU.startMiniCluster();
 
         // Create table then get the single region for our new table.
