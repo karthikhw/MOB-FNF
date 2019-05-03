@@ -37,7 +37,7 @@ Repro for MOB datalosss Scenario
  3. Minor compaction frequently triggered because the size of the flush is small
       a) Region Size 10 MB
       b) Flush size 1 MB
- 4. Data validation started after 1 hour
+ 4. Data validation started after data load
  */
 @Category(MediumTests.class)
 public class TestMobCompaction {
