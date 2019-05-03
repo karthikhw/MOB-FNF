@@ -63,7 +63,6 @@ public class TestMobCompaction {
         HTU.getConfiguration().setInt("hfile.format.version", 3);
         HTU.getConfiguration().setLong(TimeToLiveHFileCleaner.TTL_CONF_KEY, 0);
         HTU.getConfiguration().setInt("hbase.client.retries.number", 100);
-        //HTU.getConfiguration().setInt("hbase.hfile.compaction.discharger.interval", 100);
         HTU.getConfiguration().setInt("hbase.hregion.max.filesize", 200000000);
         HTU.getConfiguration().setInt("hbase.hregion.memstore.flush.size", 800000);
         HTU.startMiniCluster();
