@@ -49,7 +49,7 @@ public class TestMobCompaction {
     private final static byte[] fam = Bytes.toBytes(famStr);
     private final static byte[] qualifier = Bytes.toBytes("q1");
     private final static long mobLen = 10;
-    private final static byte[] mobVal = Bytes.toBytes("01234567890123");
+    private final static byte[] mobVal = Bytes.toBytes("01234567890123456789012345678901234567890123456789012345678901234567890123456789");
     private final static HTableDescriptor hdt = HTU.createTableDescriptor("testMobCompactTable");
     private static HColumnDescriptor hcd= new HColumnDescriptor(fam);
     private final static long count = 10000000;
@@ -63,7 +63,7 @@ public class TestMobCompaction {
         HTU.getConfiguration().setLong(TimeToLiveHFileCleaner.TTL_CONF_KEY, 0);
         HTU.getConfiguration().setInt("hbase.client.retries.number", 100);
         //HTU.getConfiguration().setInt("hbase.hfile.compaction.discharger.interval", 100);
-        HTU.getConfiguration().setInt("hbase.hregion.max.filesize", 10000000);
+        HTU.getConfiguration().setInt("hbase.hregion.max.filesize", 150000000);
         HTU.getConfiguration().setInt("hbase.hregion.memstore.flush.size", 1000000);
         HTU.startMiniCluster();
 
@@ -162,28 +162,7 @@ public class TestMobCompaction {
         }
     }
 
-    class ValidateData implements Runnable {
 
-        @Override
-        public void run() {
-            while (run) {
-                    try {
-                        Get get;Result result;
-                        for (int i = 0; i < count ; i++) {
-                            get = new Get(Bytes.toBytes(i));
-                            result = table.get(get);
-                            assertTrue(Arrays.equals(result.getValue(fam, qualifier), mobVal));
-                            Thread.sleep(10);
-                        }
-                        run = false;
-                    } catch (Exception e) {
-                        run = false;
-                        e.printStackTrace();
-                        assertTrue(false);
-                    }
-            }
-        }
-    }
 
 
 
@@ -207,26 +186,20 @@ public class TestMobCompaction {
             Thread cleanArchive = new Thread(new CleanArchive());
             cleanArchive.start();
 
-            Thread.sleep(60*60000);
-            Thread validateData = new Thread(new ValidateData());
-            //validateData.start();
-
             while (run){
-                try {
+                Thread.sleep(30000);
+            }
+             try {
                     Get get;Result result;
                     for (int i = 0; i < count ; i++) {
                         get = new Get(Bytes.toBytes(i));
                         result = table.get(get);
                         assertTrue(Arrays.equals(result.getValue(fam, qualifier), mobVal));
-                        Thread.sleep(10);
                     }
-                    run = false;
                 } catch (Exception e) {
                         e.printStackTrace();
                         assertTrue(false);
                 }
-            }
-
         } finally {
 
             HTU.getHBaseAdmin().disableTable(hdt.getTableName());
