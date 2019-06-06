@@ -1,7 +1,7 @@
 #### A note on lower case table/schema name
 Phoenix table naming conventions are in uppercase. User may do mapping on existing HBase table into Phoenix with a lowercase table name. 
 In this case, Use quotes in table name i.e "tablename" for bulkload.
-Phoenix mainly use Apache Commons CLI library for parsing command line option. 
+Phoenix mainly uses Apache Commons CLI library for parsing command line option. 
 
 Commons CLI has a problem in interpreting double quotes, Ref CLI-275. As a workaround, Use \\\"\\\"tablename\\\"\\\" will interprete to "tablename".
 
